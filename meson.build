@@ -30,6 +30,11 @@ if get_option('rpmmd')
     dxml_dep = dependency('dxml', fallback: ['dxml', 'dxml_dep'])
 endif
 
+stone_dep = dependency('', required: false)
+if get_option('stone')
+    stone_dep = dependency('libstone')
+endif
+
 #
 # Build interfaces from GIR
 #

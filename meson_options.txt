@@ -7,6 +7,11 @@ option('rpmmd',
        value: true,
        description: 'Build the RPM-MD backend..'
 )
+option('stone',
+       type: 'boolean',
+       value: false,
+       description: 'Build the Stone backend for Aeryn OS.'
+)
 option('download-js',
        type: 'boolean',
        value: true,

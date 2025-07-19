@@ -3,6 +3,7 @@ conf_data = configuration_data()
 conf_data.set('datadir', join_paths(get_option('prefix'), get_option('datadir'), 'appstream'))
 conf_data.set('asgen_version', asgen_version)
 conf_data.set('build_rpmmd', get_option('rpmmd')? 'true' : 'false')
+conf_data.set('build_stone', get_option('stone')? 'true' : 'false')
 configure_file(input : 'defines.d.in',
                output: 'defines.d',
                configuration: conf_data
@@ -79,6 +80,15 @@ if get_option('rpmmd')
     ]
 endif
 
+if get_option('stone')
+    backend_sources += [
+        'backends/stone/package.d',
+        'backends/stone/stonepkg.d',
+        'backends/stone/stonepkgindex.d',
+        'backends/stone/stonebindings.d',
+    ]
+endif
+
 #
 # Build and test
 #
@@ -93,7 +103,8 @@ asgen_exe = executable('appstream-generator',
                    lmdb_dep,
                    archive_dep,
                    curl_dep,
-                   dxml_dep],
+                   dxml_dep,
+                   stone_dep],
     link_with: [girbind_lib],
     d_import_dirs: [data_import_dirs],
     install: true
@@ -110,7 +121,8 @@ asgen_test_exe = executable('asgen_test',
                    lmdb_dep,
                    archive_dep,
                    curl_dep,
-                   dxml_dep],
+                   dxml_dep,
+                   stone_dep],
     link_with: [girbind_lib],
     d_import_dirs: [data_import_dirs],
     d_unittest: true

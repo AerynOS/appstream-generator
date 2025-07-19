@@ -41,7 +41,7 @@ import asgen.reportgenerator;
 import asgen.localeunit : LocaleUnit;
 import asgen.cptmodifiers : InjectedModifications;
 import asgen.utils : copyDir, stringArrayToByteArray, getCidFromGlobalID;
-import asgen.defines : HAVE_RPMMD;
+import asgen.defines : HAVE_RPMMD, HAVE_STONE;
 
 import asgen.backends.interfaces;
 import asgen.backends.dummy;
@@ -53,6 +53,9 @@ import asgen.backends.freebsd;
 
 static if (HAVE_RPMMD)
     import asgen.backends.rpmmd;
+
+static if (HAVE_STONE)
+    import asgen.backends.stone;
 
 import asgen.iconhandler : IconHandler;
 
@@ -103,8 +106,15 @@ public:
             case Backend.FreeBSD:
                 pkgIndex = new FreeBSDPackageIndex (conf.archiveRoot);
                 break;
+            case Backend.Stone:
+                static if (HAVE_STONE) {
+                    pkgIndex = new StonePackageIndex (conf.archiveRoot);
+                } else {
+                    throw new Exception("This appstream-generator was built without support for Stone!");
+                }
+                break;
             default:
-                throw new Exception("No backend specified, can not continue!");
+                throw new Exception("No backend specified!");
         }
 
         // load global registry of issue hint templates

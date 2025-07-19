@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2024 Serpent OS Developers
  *
  * Licensed under the GNU Lesser General Public License Version 3
  *
@@ -17,17 +17,7 @@
  * along with this software.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module asgen.defines;
-@safe:
+module asgen.backends.stone;
 
-// location of arch-indep data for asgen
-public enum DATADIR = "@datadir@";
-
-// current version of the tool
-public enum ASGEN_VERSION = "@asgen_version@";
-
-// whether the RPM-MD backend is enabled
-public enum HAVE_RPMMD = @build_rpmmd@;
-
-// whether the Stone backend is enabled
-public enum HAVE_STONE = @build_stone@;
+public import asgen.backends.stone.stonepkg;
+public import asgen.backends.stone.stonepkgindex;
