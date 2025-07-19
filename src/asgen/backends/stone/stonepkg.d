@@ -21,8 +21,9 @@ module asgen.backends.stone.stonepkg;
 
 import std.stdio : File;
 import std.string : format, strip, endsWith, splitLines, join, split, toStringz;
-import std.path : buildNormalizedPath, buildPath, baseName;
+import std.path : buildNormalizedPath, buildPath, baseName, stripExtension;
 import std.array : empty, appender;
+import std.file : SpanMode;
 import std.file : rmdirRecurse, mkdirRecurse;
 import std.typecons : Nullable;
 import std.conv : to;
@@ -67,10 +68,8 @@ private:
     bool readerOpen;
     File stoneFile;
 
-    // Archive decompressor for file extraction
     ArchiveDecompressor archive;
 
-    // Cache for metadata
     bool metadataRead;
     StonePayloadMetaRecord[] metaRecords;
     StonePayloadLayoutRecord[] layoutRecords;
@@ -136,8 +135,21 @@ public:
         {
             synchronized (this)
             {
+                // Double-check pattern to avoid race conditions
+                if (!localStoneFname.empty)
+                    return localStoneFname;
+
                 auto dl = Downloader.get;
-                immutable path = buildNormalizedPath(tmpDir, stoneFname.baseName);
+
+                // Ensure the temporary directory exists
+                if (!std.file.exists(tmpDir))
+                    mkdirRecurse(tmpDir);
+
+                // Make filename unique by including package name/version to avoid conflicts
+                immutable uniqueFilename = format("%s-%s-%s_%s", name, ver, arch, stoneFname
+                        .baseName);
+                immutable path = buildNormalizedPath(tmpDir, uniqueFilename);
+
                 dl.downloadFile(stoneFname, path);
                 localStoneFname = path;
                 return localStoneFname;
@@ -222,10 +234,14 @@ public:
                 return;
 
             auto fileName = getFilename();
-            try {
+            try
+            {
                 stoneFile = File(fileName, "rb");
-            } catch (Exception e) {
-                throw new Exception("Failed to open stone package file: " ~ fileName ~ " - " ~ e.msg);
+            }
+            catch (Exception e)
+            {
+                throw new Exception("Failed to open stone package file: " ~ fileName ~ " - " ~ e
+                        .msg);
             }
 
             StoneReadVTable vtable;
@@ -360,9 +376,9 @@ public:
     {
         synchronized (this)
         {
-            if (!archive.isOpen())
+            if (!archive.isOpen)
             {
-                archive.open(getFilename());
+                archive.open(this.getFilename);
             }
             return archive.readData(fname);
         }
@@ -371,20 +387,37 @@ public:
     @property override final
     string[] contents()
     {
-        if (contentsRead)
-            return contentsL;
+        //if (contentsRead)
+        //    return contentsL;
+
+        if (!this.contentsL.empty)
+            return this.contentsL;
 
         synchronized (this)
         {
-            if (!archive.isOpen())
+            try
             {
-                archive.open(getFilename());
+                if (!archive.isOpen)
+                {
+                    //archive.open(this.getFilename); huh?
+                    archive.open(getFilename());
+                }
+                //contentsL = archive.readContents();
+                this.contentsL = archive.readContents();
+                contentsRead = true;
             }
-            contentsL = archive.readContents();
-            contentsRead = true;
+            catch (Exception e)
+            {
+                logError("Failed to read contents from stone package %s: %s", name, e.msg);
+            }
         }
-
         return contentsL;
+    }
+
+    @property
+    void contents(string[] c)
+    {
+        contentsL = c;
     }
 
     override final
@@ -392,19 +425,12 @@ public:
     {
         synchronized (this)
         {
-            if (readerOpen && reader !is null)
-            {
-                stone_reader_destroy(reader);
-                reader = null;
-                readerOpen = false;
-            }
-
-            if (stoneFile.isOpen())
+            if (stoneFile.isOpen)
             {
                 stoneFile.close();
             }
 
-            if (archive.isOpen())
+            if (archive.isOpen)
             {
                 archive.close();
             }
@@ -413,14 +439,25 @@ public:
             {
                 if (std.file.exists(tmpDir))
                 {
+                    /* Whenever we delete the temporary directory, we need to
+                     * forget about the local file too, since (if it's remote) that
+                     * was downloaded into there. */
                     logDebug("Deleting temporary directory %s", tmpDir);
                     localStoneFname = null;
-                    rmdirRecurse(tmpDir);
+                    //rmdirRecurse(tmpDir);
                 }
             }
             catch (Exception e)
             {
+                // we ignore any error
                 logDebug("Unable to remove temporary directory: %s (%s)", tmpDir, e.msg);
+            }
+
+            if (readerOpen && reader !is null)
+            {
+                stone_reader_destroy(reader);
+                reader = null;
+                readerOpen = false;
             }
         }
     }

@@ -65,10 +65,36 @@ public:
         indexChanged = null;
     }
 
+    /**
+     * Download a file if it's remote, or return the local path if it's already local.
+     */
+    private string downloadIfNecessary(string fname, string tempDir = null)
+    {
+        import asgen.downloader : Downloader;
+
+        if (!fname.isRemote)
+            return fname;
+
+        if (tempDir.empty)
+        {
+            auto conf = Config.get();
+            tempDir = conf.getTmpDir();
+        }
+
+        if (!std.file.exists(tempDir))
+            std.file.mkdirRecurse(tempDir);
+
+        auto dl = Downloader.get;
+        immutable path = buildPath(tempDir, fname.baseName);
+        dl.downloadFile(fname, path);
+
+        return path;
+    }
+
     private string getIndexFile(string suite, string section, string arch)
     {
         // For stone repositories, we expect stone.index in the arch directory
-        return buildPath(rootDir, arch, "stone.index");
+        return buildPath(rootDir, suite, arch, "stone.index");
     }
 
     protected StonePackage newPackage(string name, string ver, string arch)
@@ -79,6 +105,8 @@ public:
     private StonePackage[] loadPackages(string suite, string section, string arch, bool withLongDescs = true)
     {
         auto indexFname = getIndexFile(suite, section, arch);
+        synchronized (this)
+            indexFname = downloadIfNecessary(indexFname, tmpDir);
         if (!std.file.exists(indexFname))
         {
             logWarning("Stone package index file '%s' does not exist.", indexFname);
@@ -146,7 +174,7 @@ public:
             // Only process meta payloads for package information
             if (payloadHeader.kind == StonePayloadKind.STONE_PAYLOAD_KIND_META)
             {
-                auto pkg = processMetaPayload(payload, &payloadHeader, arch);
+                auto pkg = processMetaPayload(payload, &payloadHeader, arch, suite);
                 if (pkg !is null && pkg.isValid())
                 {
                     // Filter out duplicate packages, keeping the most recent version
@@ -173,7 +201,7 @@ public:
         return array(pkgs.byValue);
     }
 
-    private StonePackage processMetaPayload(StonePayload* payload, StonePayloadHeader* header, string arch)
+    private StonePackage processMetaPayload(StonePayload* payload, StonePayloadHeader* header, string arch, string suite)
     {
         auto pkg = newPackage("", "", arch);
         string packageUri = "";
@@ -188,6 +216,12 @@ public:
             switch (record.tag)
             {
             case StonePayloadMetaTag.STONE_PAYLOAD_META_TAG_NAME:
+                auto pkgname = stoneStringToD(record.primitive_payload.string);
+                if (pkgname.endsWith("-devel") || pkgname.endsWith("-dbginfo"))
+                {
+                    logDebug("Skipping development/debug package: %s", pkgname);
+                    return null;
+                }
                 pkg.name = stoneStringToD(record.primitive_payload.string);
                 break;
             case StonePayloadMetaTag.STONE_PAYLOAD_META_TAG_VERSION:
@@ -223,8 +257,9 @@ public:
         // Set the package filename based on the package URI
         if (!packageUri.empty)
         {
-            auto fullPath = buildPath(rootDir, arch, packageUri);
+            auto fullPath = buildPath(rootDir, suite, arch, packageUri);
             pkg.filename(fullPath);
+            logDebug("Stone package URI: %s", fullPath);
         }
 
         return pkg;
@@ -307,7 +342,7 @@ public:
 
             if (payloadHeader.kind == StonePayloadKind.STONE_PAYLOAD_KIND_META)
             {
-                pkg = processMetaPayload(payload, &payloadHeader, "");
+                pkg = processMetaPayload(payload, &payloadHeader, "", "");
                 if (pkg !is null)
                 {
                     pkg.filename = fname;
