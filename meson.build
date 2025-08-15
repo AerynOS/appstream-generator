@@ -31,6 +31,7 @@ icu_dep       = dependency('icu-uc')
 inja_dep      = dependency('inja', fallback: ['inja', 'inja_dep'], default_options: ['build_tests=false'])
 libxml2_dep   = dependency('libxml-2.0') # for rpmmd
 catch2_dep    = dependency('catch2-with-main')
+stone_dep     = dependency('libstone')
 
 backward_deps = []
 backward_dep = dependency('', required: false)

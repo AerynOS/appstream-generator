@@ -65,6 +65,7 @@ asgen_deps = [
   icu_dep,
   inja_dep,
   libxml2_dep,
+  stone_dep,
 ]
 
 asgen_args = [
